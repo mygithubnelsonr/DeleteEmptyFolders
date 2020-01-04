@@ -6,50 +6,18 @@ namespace DeleteEmptyFolders
 {
     public class Methods
     {
-        static string GetLastInList(string dirPath)
-        {
-            string[] allfiles = Directory.GetFileSystemEntries(dirPath, "*.*", SearchOption.TopDirectoryOnly);
-            Array.Sort(allfiles);
-            return allfiles[allfiles.Length - 1];
-        }
-
-        static long GetDirectorySize(string parentDirectory)
-        {
-            long directorySize = -1;
-            try
-            {
-                directorySize = new DirectoryInfo(parentDirectory).GetFiles("*.*", SearchOption.AllDirectories).Sum(file => file.Length);
-            }
-            catch (Exception ex)
-            {
-                Logging.Log("Exeption: " + ex.Message);
-            }
-
-            return directorySize;
-        }
-
-        public static void DelEmptyFolder(string dirPath, bool lastdirOnly)
+        public static void DeleteEmptyLastFolderOnly(DirectoryInfo directoryInfo)
         {
             string folder;
+            folder = Methods.GetLastInList(directoryInfo.FullName);
+            Logging.Log("processing folder: " + folder);
 
-            if (lastdirOnly == true)
-            {
-                folder = Methods.GetLastInList(dirPath);
-                Logging.Log("processing folder: " + folder);
-            }
-            else
-            {
-                folder = dirPath;
-            }
-
-            DelEmptyFolder(folder);
+            DirectoryInfo directory = new DirectoryInfo(folder);
+            DeleteEmptyFolders(directory);
         }
 
-        static void DelEmptyFolder(string dirPath)
+        public static void DeleteEmptyFolders(DirectoryInfo directoryInfo)
         {
-            bool isIgnore = false;
-
-            DirectoryInfo directoryInfo = new DirectoryInfo(dirPath);
             DirectoryInfo[] directoryInfos;
 
             try
@@ -58,43 +26,59 @@ namespace DeleteEmptyFolders
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Logging.Log(ex.Message);
                 return;
             }
 
-            foreach (DirectoryInfo dir in directoryInfos)
+            for (int d = directoryInfos.Length - 1; d >= 0; d--)
             {
-                string folderName = dir.FullName;
-                long directorySize = Methods.GetDirectorySize(dir.FullName);
+                string folderName = directoryInfos[d].FullName;
+                long directorySize = Methods.GetDirectorySize(directoryInfos[d]);
 
-                if (folderName.IndexOf("(Full)") > -1 && isIgnore == false)
+                if (directorySize == 0)
                 {
-                    isIgnore = true;
-                    Logging.Log($"size = {directorySize},  {dir.FullName} is a Full Backup Folder! => skipped");
-                    continue;
+                    try
+                    {
+                        if (directoryInfos[d].Attributes.HasFlag(FileAttributes.ReadOnly) == true)
+                        {
+                            directoryInfos[d].Attributes = FileAttributes.Normal;
+                        }
+                        directoryInfos[d].Delete();
+                        Logging.Log($"empty folder     {directoryInfos[d].FullName} ==> deleted");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logging.Log(ex.Message);
+                    }
                 }
                 else
                 {
-                    if (directorySize == 0)
-                    {
-                        dir.Delete(true);
-                        Logging.Log($"size = {directorySize},  {dir.FullName} ==> deleted");
-                    }
-                    else
-                    {
-                        Logging.Log($"size = {directorySize},  {dir.FullName} ==> skipped");
-                    }
+                    string size = directorySize.ToString() + "                 ";
+                    Logging.Log($"size = {size.Substring(0, 10)}{folderName} ==> skipped");
                 }
             }
+        }
 
+        static string GetLastInList(string dirPath)
+        {
+            string[] allfiles = Directory.GetFileSystemEntries(dirPath, "*.*", SearchOption.TopDirectoryOnly);
+            Array.Sort(allfiles);
+            return allfiles[allfiles.Length - 1];
+        }
+
+        public static long GetDirectorySize(DirectoryInfo path)
+        {
+            long directorySize = -1;
             try
             {
-                directoryInfo.Delete();
+                directorySize = path.GetFiles("*.*", SearchOption.AllDirectories).Sum(file => file.Length);
             }
             catch (Exception ex)
             {
-                Logging.Log($"Das Verzeichnis ist nicht leer! ({dirPath})");
+                Logging.Log("Exeption: " + ex.Message);
             }
+
+            return directorySize;
         }
     }
 }
